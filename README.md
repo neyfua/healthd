@@ -62,10 +62,10 @@ Git Push / PR
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/health` | Liveness probe — returns `{"status":"ok"}` |
+| GET | `/health` | Health probe — returns `{"status":"ok"}` |
+| GET | `/livez` | Process liveness — returns 200 while the process runs |
+| GET | `/readyz` | Traffic readiness — returns 503 after graceful shutdown starts |
 | GET | `/` | Service metadata — name, version, build info |
-
-Additional endpoints will appear as features land (readiness, appointments, metrics).
 
 ## Local Development
 
