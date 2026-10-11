@@ -35,7 +35,7 @@ graph TD
 
 ### Prerequisites
 
-- Go 1.25 or newer
+- Go 1.26 or newer
 - Make
 - Docker & Docker Compose (optional for local containers)
 
@@ -85,5 +85,5 @@ git push origin v0.1.0
 Images can then be pulled via:
 
 ```bash
-docker pull ghcr.io/neyfua/healthd:v0.1.0
+docker pull ghcr.io/neyfua/healthd:0.1.2
 ```
