@@ -7,43 +7,75 @@ import (
 )
 
 func TestHealthHandler(t *testing.T) {
+	s := New(0)
 	tests := []struct {
 		name       string
 		method     string
 		wantStatus int
 		wantBody   string
 	}{
-		{
-			name:       "GET /health returns ok",
-			method:     http.MethodGet,
-			wantStatus: http.StatusOK,
-			wantBody:   `{"status":"ok"}`,
-		},
-		{
-			name:       "POST /health not allowed",
-			method:     http.MethodPost,
-			wantStatus: http.StatusMethodNotAllowed,
-			wantBody:   "",
-		},
-		{
-			name:       "PUT /health not allowed",
-			method:     http.MethodPut,
-			wantStatus: http.StatusMethodNotAllowed,
-			wantBody:   "",
-		},
+		{"GET returns ok", http.MethodGet, http.StatusOK, `{"status":"ok"}`},
+		{"POST not allowed", http.MethodPost, http.StatusMethodNotAllowed, ""},
+		{"PUT not allowed", http.MethodPut, http.StatusMethodNotAllowed, ""},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(tt.method, "/health", nil)
 			w := httptest.NewRecorder()
-			healthHandler(w, req)
+			s.healthHandler(w, req)
 
 			if w.Code != tt.wantStatus {
 				t.Errorf("status = %d, want %d", w.Code, tt.wantStatus)
 			}
 			if tt.wantBody != "" && w.Body.String() != tt.wantBody {
 				t.Errorf("body = %s, want %s", w.Body.String(), tt.wantBody)
+			}
+		})
+	}
+}
+
+func TestReadinessHandler(t *testing.T) {
+	s := New(0)
+	tests := []struct {
+		name       string
+		ready      bool
+		wantStatus int
+		wantBody   string
+	}{
+		{"ready", true, http.StatusOK, `{"status":"ok"}`},
+		{"not ready", false, http.StatusServiceUnavailable, `{"status":"unavailable"}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s.ready.Store(tt.ready)
+			w := httptest.NewRecorder()
+			s.readinessHandler(w, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+			if w.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d", w.Code, tt.wantStatus)
+			}
+			if w.Body.String() != tt.wantBody {
+				t.Errorf("body = %s, want %s", w.Body.String(), tt.wantBody)
+			}
+		})
+	}
+}
+
+func TestProbesRoutedThroughMux(t *testing.T) {
+	for _, path := range []string{"/health", "/livez", "/readyz"} {
+		t.Run("GET "+path, func(t *testing.T) {
+			s := New(0)
+			ts := httptest.NewServer(s.httpServer.Handler)
+			defer ts.Close()
+
+			resp, err := http.Get(ts.URL + path)
+			if err != nil {
+				t.Fatalf("GET %s: %v", path, err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				t.Errorf("GET %s status = %d, want %d", path, resp.StatusCode, http.StatusOK)
 			}
 		})
 	}
