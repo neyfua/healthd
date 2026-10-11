@@ -23,6 +23,14 @@ make run
 
 # Query health endpoint
 curl -i http://localhost:8080/health
+
+# List synthetic appointments
+curl -s http://localhost:8080/api/v1/appointments
+
+# Create an appointment
+curl -i -X POST http://localhost:8080/api/v1/appointments \
+  -H "Content-Type: application/json" \
+  -d '{"patient":"Jordan Lee","reason":"Routine check","time":"2026-10-20T10:00:00Z"}'
 ```
 
 ## Local Container Workflow

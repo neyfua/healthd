@@ -65,7 +65,12 @@ Git Push / PR
 | GET | `/health` | Health probe — returns `{"status":"ok"}` |
 | GET | `/livez` | Process liveness — returns 200 while the process runs |
 | GET | `/readyz` | Traffic readiness — returns 503 after graceful shutdown starts |
+| GET | `/api/v1/appointments` | List synthetic clinic appointments |
+| POST | `/api/v1/appointments` | Create an appointment in memory |
+| GET | `/api/v1/appointments/{id}` | Retrieve an appointment |
 | GET | `/` | Service metadata — name, version, build info |
+
+Appointment records are synthetic examples. Store is in-memory and resets on restart. Creation requires non-empty patient and reason fields and a future RFC3339 timestamp.
 
 ## Local Development
 
@@ -122,7 +127,7 @@ docker pull ghcr.io/neyfua/healthd:v0.1.0
 - Single binary, no horizontal scaling story yet
 - In-memory only — data lost on restart
 - No authentication, authorization, or audit logging
-- Metrics and readiness probes not yet implemented (planned)
+- Metrics endpoint not yet implemented (planned)
 - Distroless base limits debugging tools in production image
 
 ## License
