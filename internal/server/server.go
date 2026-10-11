@@ -2,28 +2,35 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"sync/atomic"
 	"time"
+
+	"github.com/neyfua/healthd/internal/clinic"
 )
 
 // Server wraps HTTP server with graceful shutdown
 type Server struct {
 	httpServer *http.Server
 	ready      atomic.Bool
+	clinic     *clinic.Store
 }
 
 // New creates a new server on the given port
 func New(port int) *Server {
-	s := &Server{}
+	s := &Server{clinic: clinic.NewStore()}
 	s.ready.Store(true)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.healthHandler)
 	mux.HandleFunc("/livez", s.healthHandler)
 	mux.HandleFunc("/readyz", s.readinessHandler)
+	mux.HandleFunc("/api/v1/appointments", s.appointmentsHandler)
+	mux.HandleFunc("/api/v1/appointments/", s.appointmentHandler)
 	mux.HandleFunc("/", rootHandler)
 
 	s.httpServer = &http.Server{
@@ -73,6 +80,66 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"service":"healthd","version":"dev"}`))
+}
+
+// appointmentsHandler serves GET (list) and POST (create) on the collection.
+func (s *Server) appointmentsHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, http.StatusOK, s.clinic.List())
+	case http.MethodPost:
+		// Limit body size to prevent resource exhaustion
+		const maxBody = 1 << 20 // 1 MB
+		r.Body = http.MaxBytesReader(w, r.Body, maxBody)
+
+		var in clinic.CreateInput
+		dec := json.NewDecoder(r.Body)
+		dec.DisallowUnknownFields()
+
+		if err := dec.Decode(&in); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
+			return
+		}
+		// Reject any trailing data after the first JSON object
+		if err := dec.Decode(&struct{}{}); err != io.EOF {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unexpected trailing data"})
+			return
+		}
+
+		a, err := s.clinic.Create(in)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusCreated, a)
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+// appointmentHandler serves GET on /api/v1/appointments/{id}.
+func (s *Server) appointmentHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	id := r.URL.Path[len("/api/v1/appointments/"):]
+	if id == "" {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+		return
+	}
+	a, err := s.clinic.Get(id)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+		return
+	}
+	writeJSON(w, http.StatusOK, a)
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
 }
 
 // Start runs the server (blocks)
