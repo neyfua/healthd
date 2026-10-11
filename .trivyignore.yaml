@@ -1,0 +1,3 @@
+# Known findings accepted temporarily for pinned upstream base image.
+# Review on every base-image update; remove as fixed images become available.
+vulnerabilities: []
