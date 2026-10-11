@@ -3,59 +3,88 @@
 [![CI](https://github.com/neyfua/healthd/actions/workflows/ci.yml/badge.svg)](https://github.com/neyfua/healthd/actions/workflows/ci.yml)
 [![Container Security & Release](https://github.com/neyfua/healthd/actions/workflows/container.yml/badge.svg)](https://github.com/neyfua/healthd/actions/workflows/container.yml)
 
-A minimal, production-grade Go HTTP health probe showcasing an automated container delivery pipeline: code testing, multi-stage compilation, security scanning, and container registry publishing.
+A minimal Go HTTP service that demonstrates an automated container delivery pipeline: code testing, multi-stage compilation, security scanning, and container registry publishing.
+
+Originally built as a quick DevOps portfolio piece, it's now evolving into a small synthetic healthcare service to showcase more realistic operational concerns — readiness probes, structured logging, metrics, and local observability stack.
+
+## Project Scope
+
+healthd simulates a tiny clinic backend with in-memory appointment data. It is intentionally small: no database, no authentication, no real patient data. All data is synthetic and generated at startup.
+
+Goals:
+
+- Show a complete Go + Docker + GitHub Actions pipeline
+- Exercise operational patterns (probes, logging, metrics) without cloud dependencies
+- Stay runnable locally with `make` and `docker compose`
+
+Non-goals:
+
+- Production healthcare compliance (HIPAA, etc.)
+- Real user management or data persistence
+- Kubernetes, cloud providers, or service mesh
+
+**AI assistance note**: AI helped with some scaffolding and implementation suggestions. I review and test changes before keeping them, and document the decisions and trade-offs as the project grows.
 
 ## Architecture
 
-```mermaid
-graph TD
-    A[Git Push / PR] --> B[GitHub Actions CI]
-    B --> C[Unit & Race Tests]
-    C --> D[Go Vet & Mod Tidy Check]
-    D --> E[Build Multi-Stage Image]
-    E --> F[Trivy Vulnerability Scan]
-    F -->|Fixable CRITICAL / HIGH found| G[Fail Pipeline & Block Merge]
-    F -->|Pass + Tag Push v*.*.*| H[Publish to GitHub Container Registry]
 ```
-
-## Features
-
-- **Standard Library Only**: Fast startup, zero third-party runtime dependencies, small footprint.
-- **Graceful Lifecycle**: Handles `SIGTERM` and `SIGINT` with 5-second shutdown context.
-- **Hardened Distroless Base**: Runs as unprivileged user (`nonroot:65532`), eliminating package managers and shells from production images.
-- **Security Guardrails**: Automated Trivy scanning blocks deployment if fixable critical or high vulnerabilities are detected.
-- **Automated OCI Releases**: Semantic version tags publish multi-tagged images (`vX.Y.Z`, `vX.Y`, `sha-*`) to GitHub Container Registry (`ghcr.io`).
+Git Push / PR
+      │
+      ▼
+┌─────────────────────┐
+│  GitHub Actions CI  │
+│  - Go test (race)   │
+│  - go vet           │
+│  - go mod tidy      │
+└─────────┬───────────┘
+          │
+          ▼
+┌─────────────────────┐
+│  Container Build    │
+│  - Multi-stage      │
+│  - Distroless base  │
+│  - Nonroot user     │
+└─────────┬───────────┘
+          │
+          ▼
+┌─────────────────────┐
+│  Trivy Scan         │
+│  - CRITICAL/HIGH    │
+│  - Ignores unfixed  │
+└─────────┬───────────┘
+          │
+    ┌─────┴─────┐
+    ▼           ▼
+ PR checks   Tag push → GHCR
+```
 
 ## Endpoints
 
-- `GET /health` - Health probe returns `200 OK` with `{"status":"ok"}`.
-- `GET /` - Root endpoint returns service identification and version metadata.
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/health` | Liveness probe — returns `{"status":"ok"}` |
+| GET | `/` | Service metadata — name, version, build info |
+
+Additional endpoints will appear as features land (readiness, appointments, metrics).
 
 ## Local Development
 
-### Prerequisites
+See [Local Runbook](docs/runbook.md) for the full workflow.
 
-- Go 1.26 or newer
-- Make
-- Docker & Docker Compose (optional for local containers)
-
-### Run & Test
+Quick start:
 
 ```bash
-# Run unit tests
+# Run tests
 make test
 
-# Build binary
-make build
-
-# Run binary locally
+# Build and run locally
 make run
 
-# Query endpoint
-curl -i http://localhost:8080/health
+# Check health
+curl http://localhost:8080/health
 ```
 
-### Run with Docker Compose
+With Docker Compose:
 
 ```bash
 docker compose up --build -d
@@ -65,15 +94,15 @@ docker compose down
 
 ## Continuous Integration & Delivery
 
-1. **Pull Requests (`ci.yml` & `container.yml`)**:
-   - Runs unit tests with race detection and test shuffling.
-   - Verifies Go module consistency (`go mod tidy --diff`).
-   - Builds container image and runs Trivy vulnerability scanning.
-2. **Releases (`container.yml`)**:
-   - Triggered on Git tags matching `v*.*.*`.
-   - Generates semver and git-SHA tags.
-   - Authenticates to `ghcr.io` via repository token.
-   - Publishes signed container images to GitHub Packages.
+1. **Pull Requests** (`ci.yml` and `container.yml`):
+   - Unit tests with race detection and shuffling
+   - `go vet` and `go mod tidy` verification
+   - Container build and Trivy vulnerability scan (CRITICAL/HIGH, fixable only)
+
+2. **Releases** (`container.yml` on `v*.*.*` tags):
+   - Semantic version and git-SHA image tags
+   - Publish to `ghcr.io/neyfua/healthd`
+   - Images published with semantic-version and commit-SHA tags
 
 ## Creating a Release
 
@@ -82,8 +111,20 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-Images can then be pulled via:
+Images are then available at:
 
 ```bash
-docker pull ghcr.io/neyfua/healthd:0.1.2
+docker pull ghcr.io/neyfua/healthd:v0.1.0
 ```
+
+## Limitations & Known Gaps
+
+- Single binary, no horizontal scaling story yet
+- In-memory only — data lost on restart
+- No authentication, authorization, or audit logging
+- Metrics and readiness probes not yet implemented (planned)
+- Distroless base limits debugging tools in production image
+
+## License
+
+MIT — see LICENSE file.
