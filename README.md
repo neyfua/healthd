@@ -5,7 +5,7 @@
 
 A minimal Go HTTP service that demonstrates an automated container delivery pipeline: code testing, multi-stage compilation, security scanning, and container registry publishing.
 
-Originally built as a quick DevOps portfolio piece, it's now evolving into a small synthetic healthcare service to showcase more realistic operational concerns — readiness probes, structured logging, metrics, and local observability stack.
+Originally built as a quick DevOps portfolio piece, it's now evolving into a small synthetic healthcare service to showcase more realistic operational concerns - readiness probes, structured logging, metrics, and local observability stack.
 
 ## Project Scope
 
@@ -62,13 +62,13 @@ Git Push / PR
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/health` | Health probe — returns `{"status":"ok"}` |
-| GET | `/livez` | Process liveness — returns 200 while the process runs |
-| GET | `/readyz` | Traffic readiness — returns 503 after graceful shutdown starts |
+| GET | `/health` | Health probe - returns `{"status":"ok"}` |
+| GET | `/livez` | Process liveness - returns 200 while the process runs |
+| GET | `/readyz` | Traffic readiness - returns 503 after graceful shutdown starts |
 | GET | `/api/v1/appointments` | List synthetic clinic appointments |
 | POST | `/api/v1/appointments` | Create an appointment in memory |
 | GET | `/api/v1/appointments/{id}` | Retrieve an appointment |
-| GET | `/` | Service metadata — name, version, build info |
+| GET | `/` | Service metadata - name, version, build info |
 
 Appointment records are synthetic examples. Store is in-memory and resets on restart. Creation requires non-empty patient and reason fields and a future RFC3339 timestamp.
 
@@ -125,11 +125,11 @@ docker pull ghcr.io/neyfua/healthd:v0.1.0
 ## Limitations & Known Gaps
 
 - Single binary, no horizontal scaling story yet
-- In-memory only — data lost on restart
+- In-memory only - data lost on restart
 - No authentication, authorization, or audit logging
 - Metrics endpoint not yet implemented (planned)
 - Distroless base limits debugging tools in production image
 
 ## License
 
-MIT — see LICENSE file.
+MIT - see LICENSE file.

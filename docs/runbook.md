@@ -52,8 +52,8 @@ docker compose down
 
 Two workflows run on every push and PR:
 
-- **ci.yml** — Go tests (race, shuffle), go vet, go mod tidy check
-- **container.yml** — Build container, Trivy scan for CRITICAL/HIGH fixable vulnerabilities
+- **ci.yml** - Go tests (race, shuffle), go vet, go mod tidy check
+- **container.yml** - Build container, Trivy scan for CRITICAL/HIGH fixable vulnerabilities
 
 On tag pushes matching `v*.*.*`, container.yml also:
 - Logs in to ghcr.io
@@ -98,5 +98,5 @@ The failed image remains in GHCR but is no longer pointed to by the version tag.
 |---------|-------|
 | `make test` fails with race warning | Run `go test -race -shuffle=on ./...` locally to reproduce |
 | Trivy scan fails in CI | Run `trivy image ghcr.io/neyfua/healthd:scan` locally after `make docker` |
-| Container won't start | `docker run --rm ghcr.io/neyfua/healthd:latest` — logs show startup or port binding issues |
+| Container won't start | `docker run --rm ghcr.io/neyfua/healthd:latest` - logs show startup or port binding issues |
 | Port already in use | Change `PORT` env var or stop the conflicting process |
