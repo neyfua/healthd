@@ -1,6 +1,7 @@
 package clinic
 
 import (
+	"slices"
 	"testing"
 	"time"
 )
@@ -99,5 +100,26 @@ func TestStore_Create_InvalidTimeInPast(t *testing.T) {
 	})
 	if err != ErrInvalidInput {
 		t.Errorf("want ErrInvalidInput for past time, got %v", err)
+	}
+}
+
+func TestStore_List_DeterministicForEqualTimes(t *testing.T) {
+	s := NewStore()
+	same := time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC)
+	// Insert out of ID order with identical times.
+	for _, id := range []string{"b", "a", "c"} {
+		s.byID[id] = Appointment{ID: id, Time: same, Status: StatusScheduled}
+	}
+
+	list := s.List()
+	var ids []string
+	for _, a := range list {
+		if a.Time.Equal(same) {
+			ids = append(ids, a.ID)
+		}
+	}
+	want := []string{"a", "b", "c"}
+	if !slices.Equal(ids, want) {
+		t.Errorf("equal-time order = %v, want %v", ids, want)
 	}
 }
