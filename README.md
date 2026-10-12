@@ -5,8 +5,6 @@
 
 A minimal Go HTTP service that demonstrates an automated container delivery pipeline: code testing, multi-stage compilation, security scanning, and container registry publishing.
 
-Originally built as a quick DevOps portfolio piece, it's now evolving into a small synthetic healthcare service to showcase more realistic operational concerns - readiness probes, structured logging, metrics, and local observability stack.
-
 ## Project Scope
 
 healthd simulates a tiny clinic backend with in-memory appointment data. It is intentionally small: no database, no authentication, no real patient data. All data is synthetic and generated at startup.
