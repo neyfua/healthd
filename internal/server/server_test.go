@@ -6,6 +6,33 @@ import (
 	"testing"
 )
 
+func TestSecurityHeaders(t *testing.T) {
+	s := New(0)
+	ts := httptest.NewServer(s.httpServer.Handler)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/health")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	tests := []struct {
+		header string
+		want   string
+	}{
+		{"X-Content-Type-Options", "nosniff"},
+		{"X-Frame-Options", "DENY"},
+		{"Referrer-Policy", "no-referrer"},
+	}
+
+	for _, tt := range tests {
+		if got := resp.Header.Get(tt.header); got != tt.want {
+			t.Errorf("header %s = %q, want %q", tt.header, got, tt.want)
+		}
+	}
+}
+
 func TestHealthHandler(t *testing.T) {
 	s := New(0)
 	tests := []struct {

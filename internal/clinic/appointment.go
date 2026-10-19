@@ -2,7 +2,7 @@ package clinic
 
 import (
 	"errors"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -76,7 +76,12 @@ func (s *Store) List() []Appointment {
 	for _, a := range s.byID {
 		out = append(out, a)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Time.Before(out[j].Time) })
+	slices.SortFunc(out, func(a, b Appointment) int {
+		if c := a.Time.Compare(b.Time); c != 0 {
+			return c
+		}
+		return strings.Compare(a.ID, b.ID)
+	})
 	return out
 }
 
