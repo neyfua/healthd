@@ -12,6 +12,7 @@ import (
 var (
 	ErrInvalidInput = errors.New("invalid input")
 	ErrNotFound     = errors.New("appointment not found")
+	ErrConflict     = errors.New("appointment already cancelled")
 )
 
 // Status values
@@ -94,6 +95,37 @@ func (s *Store) Get(id string) (Appointment, error) {
 	if !ok {
 		return Appointment{}, ErrNotFound
 	}
+	return a, nil
+}
+
+// CountByStatus returns how many appointments have the given status.
+func (s *Store) CountByStatus(status string) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	n := 0
+	for _, a := range s.byID {
+		if a.Status == status {
+			n++
+		}
+	}
+	return n
+}
+
+// Cancel marks an appointment cancelled. Repeated cancellation returns ErrConflict.
+func (s *Store) Cancel(id string) (Appointment, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	a, ok := s.byID[id]
+	if !ok {
+		return Appointment{}, ErrNotFound
+	}
+	if a.Status == StatusCancelled {
+		return Appointment{}, ErrConflict
+	}
+	a.Status = StatusCancelled
+	s.byID[id] = a
 	return a, nil
 }
 

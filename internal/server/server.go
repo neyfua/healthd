@@ -7,6 +7,9 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sort"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -18,24 +21,26 @@ type Server struct {
 	httpServer *http.Server
 	ready      atomic.Bool
 	clinic     *clinic.Store
+	metrics    *metrics
 }
 
 // New creates a new server on the given port
 func New(port int) *Server {
-	s := &Server{clinic: clinic.NewStore()}
+	s := &Server{clinic: clinic.NewStore(), metrics: newMetrics()}
 	s.ready.Store(true)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.healthHandler)
 	mux.HandleFunc("/livez", s.healthHandler)
 	mux.HandleFunc("/readyz", s.readinessHandler)
+	mux.HandleFunc("/metrics", s.metricsHandler)
 	mux.HandleFunc("/api/v1/appointments", s.appointmentsHandler)
 	mux.HandleFunc("/api/v1/appointments/", s.appointmentHandler)
 	mux.HandleFunc("/", rootHandler)
 
 	s.httpServer = &http.Server{
 		Addr:              fmt.Sprintf(":%d", port),
-		Handler:           securityHeaders(mux),
+		Handler:           securityHeaders(s.metrics.middleware(mux)),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       5 * time.Second,
 		WriteTimeout:      10 * time.Second,
@@ -128,12 +133,19 @@ func (s *Server) appointmentsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// appointmentHandler serves GET on /api/v1/appointments/{id}.
+// appointmentHandler serves GET and DELETE on /api/v1/appointments/{id}.
 func (s *Server) appointmentHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	switch r.Method {
+	case http.MethodGet:
+		s.getAppointment(w, r)
+	case http.MethodDelete:
+		s.cancelAppointment(w, r)
+	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
 	}
+}
+
+func (s *Server) getAppointment(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Path[len("/api/v1/appointments/"):]
 	if id == "" {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
@@ -147,10 +159,120 @@ func (s *Server) appointmentHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, a)
 }
 
+func (s *Server) cancelAppointment(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Path[len("/api/v1/appointments/"):]
+	if id == "" {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+		return
+	}
+	a, err := s.clinic.Cancel(id)
+	switch err {
+	case nil:
+		writeJSON(w, http.StatusOK, a)
+	case clinic.ErrNotFound:
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+	case clinic.ErrConflict:
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "already cancelled"})
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+}
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+// metrics holds cumulative request counters keyed by method, route, status.
+type metrics struct {
+	mu     sync.Mutex
+	counts map[string]int64
+}
+
+// newMetrics returns an empty metrics registry.
+func newMetrics() *metrics {
+	return &metrics{counts: make(map[string]int64)}
+}
+
+func (m *metrics) routeKey(path string) string {
+	switch {
+	case path == "/health", path == "/livez", path == "/readyz":
+		return path
+	case path == "/metrics":
+		return path
+	case path == "/api/v1/appointments":
+		return path
+	case strings.HasPrefix(path, "/api/v1/appointments/"):
+		return "/api/v1/appointments/{id}"
+	case path == "/":
+		return path
+	default:
+		return "/other"
+	}
+}
+
+func (m *metrics) record(method, route string, code int) {
+	switch method {
+	case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead, http.MethodOptions:
+	default:
+		method = "OTHER"
+	}
+	key := fmt.Sprintf("%s|%s|%d", method, route, code)
+	m.mu.Lock()
+	m.counts[key]++
+	m.mu.Unlock()
+}
+
+func (m *metrics) middleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rw := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		route := m.routeKey(r.URL.Path)
+		next.ServeHTTP(rw, r)
+		m.record(r.Method, route, rw.status)
+	})
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (r *statusRecorder) WriteHeader(code int) {
+	r.status = code
+	r.ResponseWriter.WriteHeader(code)
+}
+
+func (m *metrics) handler(w http.ResponseWriter, scheduled, cancelled int64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var sb strings.Builder
+	sb.WriteString("# HELP healthd_http_requests_total Total HTTP requests handled by route.\n")
+	sb.WriteString("# TYPE healthd_http_requests_total counter\n")
+	keys := make([]string, 0, len(m.counts))
+	for k := range m.counts {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		parts := strings.SplitN(k, "|", 3)
+		sb.WriteString(fmt.Sprintf("healthd_http_requests_total{method=%q,route=%q,code=%q} %d\n",
+			parts[0], parts[1], parts[2], m.counts[k]))
+	}
+	sb.WriteString(fmt.Sprintf("# HELP healthd_appointments Total appointments by status.\n# TYPE healthd_appointments gauge\nhealthd_appointments{status=%q} %d\nhealthd_appointments{status=%q} %d\n",
+		clinic.StatusScheduled, scheduled, clinic.StatusCancelled, cancelled))
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(sb.String()))
+}
+
+func (s *Server) metricsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	s.metrics.handler(w, int64(s.clinic.CountByStatus(clinic.StatusScheduled)), int64(s.clinic.CountByStatus(clinic.StatusCancelled)))
 }
 
 // Start runs the server (blocks)

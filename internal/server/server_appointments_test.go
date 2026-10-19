@@ -3,8 +3,10 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -123,4 +125,106 @@ func TestAppointmentHandler(t *testing.T) {
 			t.Errorf("want 404, got %d", resp.StatusCode)
 		}
 	})
+
+	t.Run("DELETE cancels appointment", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodDelete, ts.URL+"/api/v1/appointments/apt-1", nil)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("want 200, got %d", resp.StatusCode)
+		}
+
+		var a clinic.Appointment
+		if err := json.NewDecoder(resp.Body).Decode(&a); err != nil {
+			t.Fatalf("failed to decode: %v", err)
+		}
+		if a.Status != clinic.StatusCancelled {
+			t.Errorf("status = %s, want cancelled", a.Status)
+		}
+	})
+
+	t.Run("DELETE twice returns 409", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodDelete, ts.URL+"/api/v1/appointments/apt-1", nil)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusConflict {
+			t.Errorf("want 409, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("DELETE missing id returns 404", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodDelete, ts.URL+"/api/v1/appointments/missing", nil)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("want 404, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("PATCH not allowed", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodPatch, ts.URL+"/api/v1/appointments/apt-2", nil)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusMethodNotAllowed {
+			t.Errorf("want 405, got %d", resp.StatusCode)
+		}
+	})
+}
+
+func TestMetricsHandler(t *testing.T) {
+	s := New(0)
+	ts := httptest.NewServer(s.httpServer.Handler)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/health")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	resp.Body.Close()
+
+	resp, err = http.Get(ts.URL + "/metrics")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("want 200, got %d", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/plain") {
+		t.Errorf("Content-Type = %q, want text/plain", ct)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+	out := string(body)
+
+	for _, want := range []string{
+		"# TYPE healthd_http_requests_total counter",
+		`healthd_http_requests_total{method="GET",route="/health",code="200"}`,
+		"# TYPE healthd_appointments gauge",
+		`healthd_appointments{status="scheduled"} 2`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("metrics output missing %q\ngot:\n%s", want, out)
+		}
+	}
 }
