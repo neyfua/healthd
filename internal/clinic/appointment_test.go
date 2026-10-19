@@ -103,6 +103,57 @@ func TestStore_Create_InvalidTimeInPast(t *testing.T) {
 	}
 }
 
+func TestStore_Cancel(t *testing.T) {
+	s := NewStore()
+
+	a, err := s.Cancel("apt-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if a.Status != StatusCancelled {
+		t.Errorf("want cancelled, got %s", a.Status)
+	}
+
+	got, err := s.Get("apt-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Status != StatusCancelled {
+		t.Errorf("stored status = %s, want cancelled", got.Status)
+	}
+
+	_, err = s.Cancel("apt-1")
+	if err != ErrConflict {
+		t.Errorf("want ErrConflict on second cancel, got %v", err)
+	}
+
+	_, err = s.Cancel("missing")
+	if err != ErrNotFound {
+		t.Errorf("want ErrNotFound for unknown id, got %v", err)
+	}
+}
+
+func TestStore_CountByStatus(t *testing.T) {
+	s := NewStore()
+
+	if got := s.CountByStatus(StatusScheduled); got != 2 {
+		t.Errorf("scheduled = %d, want 2", got)
+	}
+	if got := s.CountByStatus(StatusCancelled); got != 0 {
+		t.Errorf("cancelled = %d, want 0", got)
+	}
+
+	if _, err := s.Cancel("apt-1"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := s.CountByStatus(StatusScheduled); got != 1 {
+		t.Errorf("scheduled = %d, want 1", got)
+	}
+	if got := s.CountByStatus(StatusCancelled); got != 1 {
+		t.Errorf("cancelled = %d, want 1", got)
+	}
+}
+
 func TestStore_List_DeterministicForEqualTimes(t *testing.T) {
 	s := NewStore()
 	same := time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC)

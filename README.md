@@ -66,9 +66,11 @@ Git Push / PR
 | GET | `/api/v1/appointments` | List synthetic clinic appointments |
 | POST | `/api/v1/appointments` | Create an appointment in memory |
 | GET | `/api/v1/appointments/{id}` | Retrieve an appointment |
+| DELETE | `/api/v1/appointments/{id}` | Cancel an appointment |
+| GET | `/metrics` | Prometheus text metrics |
 | GET | `/` | Service metadata - name, version, build info |
 
-Appointment records are synthetic examples. Store is in-memory and resets on restart. Creation requires non-empty patient and reason fields and a future RFC3339 timestamp.
+Appointment records are synthetic examples. Store is in-memory and resets on restart. Creation requires non-empty patient and reason fields and a future RFC3339 timestamp. Cancelling an appointment is idempotent at the state level but returns 409 on a second DELETE.
 
 ## Local Development
 
