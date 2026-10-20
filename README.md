@@ -103,13 +103,17 @@ docker compose down
 
 1. **Pull Requests** (`ci.yml` and `container.yml`):
    - Unit tests with race detection and shuffling
-   - `go vet` and `go mod tidy` verification
+   - `go vet`, `govulncheck`, and `go mod tidy` verification
    - Container build and Trivy vulnerability scan (CRITICAL/HIGH, fixable only)
+   - CodeQL static analysis
 
 2. **Releases** (`container.yml` on `v*.*.*` tags):
    - Semantic version and git-SHA image tags
    - Publish to `ghcr.io/neyfua/healthd`
    - Images published with semantic-version and commit-SHA tags
+
+3. **Dependency maintenance** (`dependabot.yml`):
+   - Weekly automated PRs for Go modules, GitHub Actions, and Docker images
 
 ## Creating a Release
 
