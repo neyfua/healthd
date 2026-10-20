@@ -128,7 +128,6 @@ docker pull ghcr.io/neyfua/healthd:v0.1.0
 - Single binary, no horizontal scaling story yet
 - In-memory only - data lost on restart
 - No authentication, authorization, or audit logging
-- Metrics endpoint not yet implemented (planned)
 - Distroless base limits debugging tools in production image
 
 ## License

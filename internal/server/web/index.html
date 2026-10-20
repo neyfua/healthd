@@ -18,12 +18,15 @@
   <section>
     <h2>Book an appointment</h2>
     <form id="create-form">
-      <input id="patient" placeholder="Patient name" required>
-      <input id="reason" placeholder="Reason" required>
-      <input id="when" type="datetime-local" required>
+      <label for="patient" class="sr-only">Patient name</label>
+      <input id="patient" name="patient" placeholder="Patient name" required>
+      <label for="reason" class="sr-only">Reason</label>
+      <input id="reason" name="reason" placeholder="Reason" required>
+      <label for="when" class="sr-only">Appointment time</label>
+      <input id="when" name="when" type="datetime-local" required>
       <button type="submit">Book</button>
     </form>
-    <p id="form-msg"></p>
+    <p id="form-msg" role="status" aria-live="polite"></p>
   </section>
 
   <section>
@@ -38,7 +41,7 @@
 
   <section>
     <h2>Health</h2>
-    <pre id="metrics"></pre>
+    <pre id="metrics" aria-label="Service metrics"></pre>
   </section>
 
   <script src="/static/app.js"></script>

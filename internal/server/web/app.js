@@ -21,13 +21,13 @@ async function postJSON(path, body) {
   return JSON.parse(text);
 }
 
-async function cancel(id) {
+async function cancel(id, name) {
   const res = await fetch('/api/v1/appointments/' + encodeURIComponent(id), { method: 'DELETE' });
   if (!res.ok) {
     formMsg.textContent = 'Cancel failed: ' + res.status;
     return;
   }
-  formMsg.textContent = '';
+  formMsg.textContent = 'Cancelled ' + name;
   loadAppointments();
 }
 
@@ -48,7 +48,8 @@ function renderAppointments(list) {
     if (a.status !== 'cancelled') {
       const btn = document.createElement('button');
       btn.textContent = 'Cancel';
-      btn.addEventListener('click', () => cancel(a.id));
+      btn.setAttribute('aria-label', 'Cancel appointment for ' + a.patient);
+      btn.addEventListener('click', () => cancel(a.id, a.patient));
       actions.appendChild(btn);
     }
     tr.appendChild(actions);
@@ -107,3 +108,8 @@ setBadge(document.getElementById('ready-badge'), '/readyz');
 loadAppointments();
 loadMetrics();
 setInterval(loadAppointments, 15000);
+setInterval(loadMetrics, 15000);
+setInterval(function () {
+  setBadge(document.getElementById('live-badge'), '/livez');
+  setBadge(document.getElementById('ready-badge'), '/readyz');
+}, 30000);
