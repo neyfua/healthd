@@ -13,6 +13,69 @@ import (
 	"github.com/neyfua/healthd/internal/clinic"
 )
 
+func TestAppointmentsFilterByStatus(t *testing.T) {
+	s := New(0)
+	ts := httptest.NewServer(s.httpServer.Handler)
+	defer ts.Close()
+
+	// Cancel one seeded appointment so both statuses exist.
+	resp, err := http.NewRequest(http.MethodDelete, ts.URL+"/api/v1/appointments/apt-1", nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	del, err := http.DefaultClient.Do(resp)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	del.Body.Close()
+
+	t.Run("scheduled filter", func(t *testing.T) {
+		got := fetchIDs(t, ts.URL+"/api/v1/appointments?status=scheduled")
+		if len(got) != 1 || got[0] != "apt-2" {
+			t.Errorf("scheduled ids = %v, want [apt-2]", got)
+		}
+	})
+
+	t.Run("cancelled filter", func(t *testing.T) {
+		got := fetchIDs(t, ts.URL+"/api/v1/appointments?status=cancelled")
+		if len(got) != 1 || got[0] != "apt-1" {
+			t.Errorf("cancelled ids = %v, want [apt-1]", got)
+		}
+	})
+
+	t.Run("unknown status rejected", func(t *testing.T) {
+		resp, err := http.Get(ts.URL + "/api/v1/appointments?status=bogus")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("status = %d, want 400", resp.StatusCode)
+		}
+	})
+}
+
+func fetchIDs(t *testing.T, url string) []string {
+	t.Helper()
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	var list []clinic.Appointment
+	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+	ids := make([]string, 0, len(list))
+	for _, a := range list {
+		ids = append(ids, a.ID)
+	}
+	return ids
+}
+
 func TestAppointmentsHandler(t *testing.T) {
 	s := New(0)
 	ts := httptest.NewServer(s.httpServer.Handler)

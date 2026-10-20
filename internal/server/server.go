@@ -145,7 +145,21 @@ func staticHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) appointmentsHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		writeJSON(w, http.StatusOK, s.clinic.List())
+		list := s.clinic.List()
+		if status := r.URL.Query().Get("status"); status != "" {
+			if status != clinic.StatusScheduled && status != clinic.StatusCancelled {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unknown status, use scheduled or cancelled"})
+				return
+			}
+			filtered := make([]clinic.Appointment, 0, len(list))
+			for _, a := range list {
+				if a.Status == status {
+					filtered = append(filtered, a)
+				}
+			}
+			list = filtered
+		}
+		writeJSON(w, http.StatusOK, list)
 	case http.MethodPost:
 		// Limit body size to prevent resource exhaustion
 		const maxBody = 1 << 20 // 1 MB
