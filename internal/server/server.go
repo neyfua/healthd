@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
@@ -30,11 +30,12 @@ type Server struct {
 	ready      atomic.Bool
 	clinic     *clinic.Store
 	metrics    *metrics
+	logger     *slog.Logger
 }
 
 // New creates a new server on the given port
 func New(port int) *Server {
-	s := &Server{clinic: clinic.NewStore(), metrics: newMetrics()}
+	s := &Server{clinic: clinic.NewStore(), metrics: newMetrics(), logger: slog.Default()}
 	s.ready.Store(true)
 
 	mux := http.NewServeMux()
@@ -50,7 +51,7 @@ func New(port int) *Server {
 
 	s.httpServer = &http.Server{
 		Addr:              fmt.Sprintf(":%d", port),
-		Handler:           securityHeaders(s.metrics.middleware(mux)),
+		Handler:           securityHeaders(s.accessLog(mux)),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       5 * time.Second,
 		WriteTimeout:      10 * time.Second,
@@ -267,6 +268,22 @@ func (m *metrics) record(method, route string, code int) {
 	m.mu.Unlock()
 }
 
+func (s *Server) accessLog(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rw := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		route := s.metrics.routeKey(r.URL.Path)
+		start := time.Now()
+		next.ServeHTTP(rw, r)
+		s.metrics.record(r.Method, route, rw.status)
+		s.logger.Info("http request",
+			"method", r.Method,
+			"route", route,
+			"status", rw.status,
+			"duration_ms", time.Since(start).Milliseconds(),
+		)
+	})
+}
+
 func (m *metrics) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rw := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
@@ -328,6 +345,6 @@ func (s *Server) Start() error {
 // allowing load balancers to drain connections before the process exits.
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.ready.Store(false)
-	log.Println("server marked not ready, draining connections")
+	s.logger.Info("server marked not ready, draining connections")
 	return s.httpServer.Shutdown(ctx)
 }

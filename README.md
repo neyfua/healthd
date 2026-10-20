@@ -12,7 +12,8 @@ healthd simulates a tiny clinic backend with in-memory appointment data. It is i
 Goals:
 
 - Show a complete Go + Docker + GitHub Actions pipeline
-- Exercise operational patterns (probes, logging, metrics) without cloud dependencies
+- Exercise operational patterns (probes, structured request logs, metrics) without cloud dependencies
+- Emit line-delimited JSON logs with method, normalized route, status, and duration
 - Stay runnable locally with `make` and `docker compose`
 
 Non-goals:
