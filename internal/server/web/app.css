@@ -1,0 +1,35 @@
+:root {
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  max-width: 900px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+  line-height: 1.5;
+}
+header { display: flex; justify-content: space-between; align-items: center; }
+.badges { display: flex; gap: .5rem; }
+.badge {
+  font-size: .75rem;
+  font-weight: 600;
+  padding: .2rem .5rem;
+  border-radius: .25rem;
+  background: #d1d5db;
+}
+.badge.ok { background: #16a34a; color: #fff; }
+.badge.bad { background: #dc2626; color: #fff; }
+form { display: flex; flex-wrap: wrap; gap: .5rem; }
+input, button {
+  font: inherit;
+  padding: .4rem .6rem;
+  border: 1px solid #9ca3af;
+  border-radius: .25rem;
+}
+button { cursor: pointer; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: .4rem; border-bottom: 1px solid #e5e7eb; }
+tr.cancelled td { color: #6b7280; text-decoration: line-through; }
+#form-msg { color: #dc2626; min-height: 1.5em; }
+pre { background: #f3f4f6; padding: .75rem; overflow-x: auto; }

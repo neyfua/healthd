@@ -68,7 +68,8 @@ Git Push / PR
 | GET | `/api/v1/appointments/{id}` | Retrieve an appointment |
 | DELETE | `/api/v1/appointments/{id}` | Cancel an appointment |
 | GET | `/metrics` | Prometheus text metrics |
-| GET | `/` | Service metadata - name, version, build info |
+| GET | `/` | Embedded appointment dashboard |
+| GET | `/api/v1/info` | Service metadata - name and version |
 
 Appointment records are synthetic examples. Store is in-memory and resets on restart. Creation requires non-empty patient and reason fields and a future RFC3339 timestamp. Cancelling an appointment is idempotent at the state level but returns 409 on a second DELETE.
 
