@@ -148,6 +148,11 @@ func (s *Server) appointmentsHandler(w http.ResponseWriter, r *http.Request) {
 		const maxBody = 1 << 20 // 1 MB
 		r.Body = http.MaxBytesReader(w, r.Body, maxBody)
 
+		if ct := r.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+			writeJSON(w, http.StatusUnsupportedMediaType, map[string]string{"error": "content type must be application/json"})
+			return
+		}
+
 		var in clinic.CreateInput
 		dec := json.NewDecoder(r.Body)
 		dec.DisallowUnknownFields()
@@ -163,11 +168,14 @@ func (s *Server) appointmentsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		a, err := s.clinic.Create(in)
-		if err != nil {
+		switch err {
+		case nil:
+			writeJSON(w, http.StatusCreated, a)
+		case clinic.ErrCapacity:
+			writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": err.Error()})
+		default:
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-			return
 		}
-		writeJSON(w, http.StatusCreated, a)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}

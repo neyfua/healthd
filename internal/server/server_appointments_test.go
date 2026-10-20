@@ -83,6 +83,36 @@ func TestAppointmentsHandler(t *testing.T) {
 		}
 	})
 
+	t.Run("POST rejects non-JSON content type", func(t *testing.T) {
+		resp, err := http.Post(ts.URL+"/api/v1/appointments", "text/plain", bytes.NewBufferString(`{"patient":"A","reason":"B","time":"2030-01-01T00:00:00Z"}`))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusUnsupportedMediaType {
+			t.Errorf("want 415, got %d", resp.StatusCode)
+		}
+	})
+
+	t.Run("POST rejects oversized fields", func(t *testing.T) {
+		body, _ := json.Marshal(clinic.CreateInput{
+			Patient: strings.Repeat("a", 500),
+			Reason:  "Test Reason",
+			Time:    time.Now().Add(48 * time.Hour).Format(time.RFC3339),
+		})
+
+		resp, err := http.Post(ts.URL+"/api/v1/appointments", "application/json", bytes.NewReader(body))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("want 400, got %d", resp.StatusCode)
+		}
+	})
+
 	t.Run("PUT not allowed", func(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodPut, ts.URL+"/api/v1/appointments", nil)
 		resp, err := http.DefaultClient.Do(req)

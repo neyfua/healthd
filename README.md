@@ -72,7 +72,7 @@ Git Push / PR
 | GET | `/` | Embedded appointment dashboard |
 | GET | `/api/v1/info` | Service metadata - name and version |
 
-Appointment records are synthetic examples. Store is in-memory and resets on restart. Creation requires non-empty patient and reason fields and a future RFC3339 timestamp. Cancelling an appointment is idempotent at the state level but returns 409 on a second DELETE.
+Appointment records are synthetic examples. Store is in-memory and resets on restart. Creation requires non-empty patient and reason fields, patient/reason limits of 100/500 characters, a future RFC3339 timestamp, and available capacity (1,000 appointments maximum). The API requires `Content-Type: application/json`. Cancelling an appointment returns 409 on a second DELETE.
 
 ## Local Development
 
