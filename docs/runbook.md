@@ -102,3 +102,4 @@ The failed image remains in GHCR but is no longer pointed to by the version tag.
 | Trivy scan fails in CI | Run `trivy image ghcr.io/neyfua/healthd:scan` locally after `make docker` |
 | Container won't start | `docker run --rm ghcr.io/neyfua/healthd:latest` - logs show startup or port binding issues |
 | Port already in use | Change `PORT` env var or stop the conflicting process |
+| Empty logs | Set `LOG_LEVEL=debug` to see verbose structured JSON output |
