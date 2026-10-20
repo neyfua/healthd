@@ -13,6 +13,14 @@ var (
 	ErrInvalidInput = errors.New("invalid input")
 	ErrNotFound     = errors.New("appointment not found")
 	ErrConflict     = errors.New("appointment already cancelled")
+	ErrCapacity     = errors.New("store capacity reached")
+)
+
+const (
+	maxAppointments = 1000
+	maxPatientLen   = 100
+	maxReasonLen    = 500
+	minFutureSlack  = -time.Minute
 )
 
 // Status values
@@ -129,20 +137,29 @@ func (s *Store) Cancel(id string) (Appointment, error) {
 	return a, nil
 }
 
-// Create validates input and adds a new appointment
+// Create validates input and adds a new appointment.
+// Input is capped in length and count so oversized or high-volume requests
+// cannot exhaust process memory on a service with no persistence layer.
 func (s *Store) Create(in CreateInput) (Appointment, error) {
 	in.Patient = strings.TrimSpace(in.Patient)
 	in.Reason = strings.TrimSpace(in.Reason)
+	if len(in.Patient) > maxPatientLen || len(in.Reason) > maxReasonLen {
+		return Appointment{}, ErrInvalidInput
+	}
 	if in.Patient == "" || in.Reason == "" || in.Time == "" {
 		return Appointment{}, ErrInvalidInput
 	}
 	t, err := time.Parse(time.RFC3339, in.Time)
-	if err != nil || !t.After(time.Now().Add(-time.Minute)) {
+	if err != nil || !t.After(time.Now().Add(minFutureSlack)) {
 		return Appointment{}, ErrInvalidInput
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if len(s.byID) >= maxAppointments {
+		return Appointment{}, ErrCapacity
+	}
 
 	id := "apt-" + strconv.Itoa(s.nextID)
 	s.nextID++

@@ -133,6 +133,24 @@ func TestStore_Cancel(t *testing.T) {
 	}
 }
 
+func TestStore_CreateEnforcesCapacity(t *testing.T) {
+	s := NewStore()
+	in := CreateInput{
+		Patient: "Test",
+		Reason:  "Checkup",
+		Time:    time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+	}
+
+	for i := len(s.byID); i < maxAppointments; i++ {
+		if _, err := s.Create(in); err != nil {
+			t.Fatalf("create %d: unexpected error: %v", i, err)
+		}
+	}
+	if _, err := s.Create(in); err != ErrCapacity {
+		t.Errorf("want ErrCapacity, got %v", err)
+	}
+}
+
 func TestStore_CountByStatus(t *testing.T) {
 	s := NewStore()
 
