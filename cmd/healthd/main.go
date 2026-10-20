@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -77,10 +79,12 @@ func main() {
 		log.Fatalf("%v", err)
 	}
 
+	slog.SetDefault(newLogger())
+
 	srv := server.New(port)
 	errorsCh := make(chan error, 1)
 	go func() {
-		log.Printf("healthd listening on :%d", port)
+		slog.Info("healthd listening", "port", port)
 		errorsCh <- srv.Start()
 	}()
 
@@ -89,15 +93,33 @@ func main() {
 	select {
 	case err := <-errorsCh:
 		if !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("server: %v", err)
+			slog.Error("server failed", "err", err)
+			os.Exit(1)
 		}
 	case sig := <-signals:
-		log.Printf("received %s, shutting down", sig)
+		slog.Info("shutdown signal received", "signal", sig.String())
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := srv.Shutdown(ctx); err != nil {
-			log.Fatalf("shutdown error: %v", err)
+			slog.Error("shutdown failed", "err", err)
+			os.Exit(1)
 		}
-		log.Println("server stopped")
+		slog.Info("server stopped")
 	}
+}
+
+// newLogger builds a JSON logger leveled by the LOG_LEVEL environment
+// variable (debug, info, warn, error). Container platforms expect
+// line-delimited JSON on stdout.
+func newLogger() *slog.Logger {
+	level := slog.LevelInfo
+	switch strings.ToLower(os.Getenv("LOG_LEVEL")) {
+	case "debug":
+		level = slog.LevelDebug
+	case "warn":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	}
+	return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
 }
