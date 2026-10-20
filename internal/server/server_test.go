@@ -1,8 +1,10 @@
 package server
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -108,25 +110,90 @@ func TestProbesRoutedThroughMux(t *testing.T) {
 	}
 }
 
-func TestRootHandler(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	w := httptest.NewRecorder()
-	rootHandler(w, req)
+func TestIndexHandler(t *testing.T) {
+	s := New(0)
+	ts := httptest.NewServer(s.httpServer.Handler)
+	defer ts.Close()
 
-	if w.Code != http.StatusOK {
-		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	resp, err := http.Get(ts.URL + "/")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if w.Header().Get("Content-Type") != "application/json" {
-		t.Errorf("Content-Type = %s, want application/json", w.Header().Get("Content-Type"))
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if got := resp.Header.Get("Content-Type"); !strings.Contains(got, "text/html") {
+		t.Errorf("Content-Type = %q, want text/html", got)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read body: %v", err)
+	}
+	if !strings.Contains(string(body), "<title>healthd</title>") {
+		t.Error("index HTML missing expected title")
+	}
+}
+
+func TestStaticAssets(t *testing.T) {
+	s := New(0)
+	ts := httptest.NewServer(s.httpServer.Handler)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/static/app.js")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if got := resp.Header.Get("Content-Type"); !strings.Contains(got, "javascript") {
+		t.Errorf("Content-Type = %q, want javascript", got)
+	}
+
+	resp, err = http.Get(ts.URL + "/static/app.css")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	if got := resp.Header.Get("Content-Type"); !strings.Contains(got, "css") {
+		t.Errorf("Content-Type = %q, want css", got)
 	}
 }
 
 func TestNotFound(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/unknown", nil)
 	w := httptest.NewRecorder()
-	rootHandler(w, req)
+	indexHandler(w, req)
 
 	if w.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusNotFound)
+	}
+}
+
+func TestIndexMethodNotAllowed(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	w := httptest.NewRecorder()
+	indexHandler(w, req)
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusMethodNotAllowed)
+	}
+}
+
+func TestInfoHandler(t *testing.T) {
+	w := httptest.NewRecorder()
+	infoHandler(w, httptest.NewRequest(http.MethodGet, "/api/v1/info", nil))
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	if got := strings.TrimSpace(w.Body.String()); got != `{"service":"healthd","version":"dev"}` {
+		t.Errorf("body = %s", got)
 	}
 }

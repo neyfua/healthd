@@ -2,9 +2,11 @@ package server
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"sort"
@@ -15,6 +17,12 @@ import (
 
 	"github.com/neyfua/healthd/internal/clinic"
 )
+
+//go:embed web/*
+var webFS embed.FS
+
+// staticFS holds the embedded assets served under /static/.
+var staticFS, _ = fs.Sub(webFS, "web")
 
 // Server wraps HTTP server with graceful shutdown
 type Server struct {
@@ -36,7 +44,9 @@ func New(port int) *Server {
 	mux.HandleFunc("/metrics", s.metricsHandler)
 	mux.HandleFunc("/api/v1/appointments", s.appointmentsHandler)
 	mux.HandleFunc("/api/v1/appointments/", s.appointmentHandler)
-	mux.HandleFunc("/", rootHandler)
+	mux.HandleFunc("/api/v1/info", infoHandler)
+	mux.HandleFunc("/static/", staticHandler)
+	mux.HandleFunc("/", indexHandler)
 
 	s.httpServer = &http.Server{
 		Addr:              fmt.Sprintf(":%d", port),
@@ -84,18 +94,47 @@ func securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'")
 		next.ServeHTTP(w, r)
 	})
 }
 
-func rootHandler(w http.ResponseWriter, r *http.Request) {
+// indexHandler serves the embedded dashboard.
+func indexHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
-		w.WriteHeader(http.StatusNotFound)
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	data, err := webFS.ReadFile("web/index.html")
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "unavailable"})
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`{"service":"healthd","version":"dev"}`))
+	_, _ = w.Write(data)
+}
+
+// infoHandler returns service metadata as JSON.
+func infoHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"service": "healthd", "version": "dev"})
+}
+
+// staticHandler serves embedded CSS and JS assets.
+func staticHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))).ServeHTTP(w, r)
 }
 
 // appointmentsHandler serves GET (list) and POST (create) on the collection.
@@ -206,6 +245,10 @@ func (m *metrics) routeKey(path string) string {
 	case strings.HasPrefix(path, "/api/v1/appointments/"):
 		return "/api/v1/appointments/{id}"
 	case path == "/":
+		return path
+	case strings.HasPrefix(path, "/static/"):
+		return "/static/*"
+	case path == "/api/v1/info":
 		return path
 	default:
 		return "/other"

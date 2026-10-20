@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>healthd</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header>
+    <h1>healthd</h1>
+    <div class="badges">
+      <span id="live-badge" class="badge">LIVE</span>
+      <span id="ready-badge" class="badge">READY</span>
+    </div>
+  </header>
+
+  <section>
+    <h2>Book an appointment</h2>
+    <form id="create-form">
+      <input id="patient" placeholder="Patient name" required>
+      <input id="reason" placeholder="Reason" required>
+      <input id="when" type="datetime-local" required>
+      <button type="submit">Book</button>
+    </form>
+    <p id="form-msg"></p>
+  </section>
+
+  <section>
+    <h2>Appointments</h2>
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Patient</th><th>Reason</th><th>When</th><th>Status</th><th></th></tr>
+      </thead>
+      <tbody id="appts"></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Health</h2>
+    <pre id="metrics"></pre>
+  </section>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -48,6 +48,8 @@ curl http://localhost:8080/health
 docker compose down
 ```
 
+The root path serves an embedded dashboard (same-origin js/css, no build step). Open http://localhost:8080/ to list, book, and cancel appointments.
+
 ## CI Pipeline (GitHub Actions)
 
 Two workflows run on every push and PR:
