@@ -1,10 +1,11 @@
 # syntax=docker/dockerfile:1
 FROM golang:1.26-alpine AS build
 WORKDIR /src
+ARG VERSION=dev
 COPY go.mod go.sum* ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /healthd ./cmd/healthd
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X github.com/neyfua/healthd/internal/server.BuildVersion=${VERSION}" -o /healthd ./cmd/healthd
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /healthd /healthd

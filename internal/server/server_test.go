@@ -187,13 +187,28 @@ func TestIndexMethodNotAllowed(t *testing.T) {
 }
 
 func TestInfoHandler(t *testing.T) {
+	s := New(0)
 	w := httptest.NewRecorder()
-	infoHandler(w, httptest.NewRequest(http.MethodGet, "/api/v1/info", nil))
+	s.infoHandler(w, httptest.NewRequest(http.MethodGet, "/api/v1/info", nil))
 
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
 	}
 	if got := strings.TrimSpace(w.Body.String()); got != `{"service":"healthd","version":"dev"}` {
 		t.Errorf("body = %s", got)
+	}
+}
+
+func TestInfoHandlerReflectsStampedVersion(t *testing.T) {
+	prev := BuildVersion
+	BuildVersion = "v9.9.9-test"
+	defer func() { BuildVersion = prev }()
+
+	s := New(0)
+	w := httptest.NewRecorder()
+	s.infoHandler(w, httptest.NewRequest(http.MethodGet, "/api/v1/info", nil))
+
+	if !strings.Contains(w.Body.String(), "v9.9.9-test") {
+		t.Errorf("stamped version missing from body: %s", w.Body.String())
 	}
 }

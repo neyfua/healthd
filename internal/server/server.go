@@ -18,6 +18,9 @@ import (
 	"github.com/neyfua/healthd/internal/clinic"
 )
 
+// BuildVersion is stamped into binaries with -ldflags. Defaults to dev for local builds.
+var BuildVersion = "dev"
+
 //go:embed web/*
 var webFS embed.FS
 
@@ -45,7 +48,7 @@ func New(port int) *Server {
 	mux.HandleFunc("/metrics", s.metricsHandler)
 	mux.HandleFunc("/api/v1/appointments", s.appointmentsHandler)
 	mux.HandleFunc("/api/v1/appointments/", s.appointmentHandler)
-	mux.HandleFunc("/api/v1/info", infoHandler)
+	mux.HandleFunc("/api/v1/info", s.infoHandler)
 	mux.HandleFunc("/static/", staticHandler)
 	mux.HandleFunc("/", indexHandler)
 
@@ -120,13 +123,13 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
-// infoHandler returns service metadata as JSON.
-func infoHandler(w http.ResponseWriter, r *http.Request) {
+// infoHandler returns service metadata as JSON with the stamped build version.
+func (s *Server) infoHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"service": "healthd", "version": "dev"})
+	writeJSON(w, http.StatusOK, map[string]string{"service": "healthd", "version": BuildVersion})
 }
 
 // staticHandler serves embedded CSS and JS assets.
