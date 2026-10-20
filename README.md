@@ -64,7 +64,7 @@ Git Push / PR
 | GET | `/health` | Health probe - returns `{"status":"ok"}` |
 | GET | `/livez` | Process liveness - returns 200 while the process runs |
 | GET | `/readyz` | Traffic readiness - returns 503 after graceful shutdown starts |
-| GET | `/api/v1/appointments` | List synthetic clinic appointments |
+| GET | `/api/v1/appointments` | List appointments; optional `?status=scheduled` or `?status=cancelled` filter |
 | POST | `/api/v1/appointments` | Create an appointment in memory |
 | GET | `/api/v1/appointments/{id}` | Retrieve an appointment |
 | DELETE | `/api/v1/appointments/{id}` | Cancel an appointment |
